@@ -22,16 +22,8 @@ class JsonStudiengangRepository(StudiengangRepository):
         with open(self.dateipfad, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        # 1. Stamm-Objekt erstellen
-        sg = Studiengang(
-            bezeichnung=data['bezeichnung'],
-            start_datum=datetime.strptime(data['start_datum'], '%Y-%m-%d').date(),
-            ziel_datum=datetime.strptime(data['ziel_datum'], '%Y-%m-%d').date(),
-            ziel_ects=data['ziel_ects'],
-            ziel_note=data.get('ziel_note', 2.0)
-        )
-        
-        # 2. Listen / Belegungen befüllen
+        # 1. Belegungen ZUERST erstellen
+        belegungen_liste = []
         for b_data in data.get('belegungen', []):
             modul = Modul(titel=b_data['modul']['titel'], ects_punkte=b_data['modul']['ects_punkte'])
             status = Pruefungsstatus(b_data['status'])
@@ -42,10 +34,19 @@ class JsonStudiengangRepository(StudiengangRepository):
                 pl = Pruefungsleistung(note=note)
                 
             belegung = Modulbelegung(modul=modul, status=status, pruefungsleistung=pl)
-            sg.fuege_belegung_hinzu(belegung)
-            
-        # Wir rufen hier explizit __post_init__ auf, um die 1..* Regel zu validieren
-        sg.__post_init__() 
+            belegungen_liste.append(belegung)
+
+        # 2. Studiengang-Objekt MIT der befüllten Liste instanziieren.
+        # Python ruft hiernach vollautomatisch __post_init__ auf und validiert erfolgreich!
+        sg = Studiengang(
+            bezeichnung=data['bezeichnung'],
+            start_datum=datetime.strptime(data['start_datum'], '%Y-%m-%d').date(),
+            ziel_datum=datetime.strptime(data['ziel_datum'], '%Y-%m-%d').date(),
+            ziel_ects=data['ziel_ects'],
+            ziel_note=data.get('ziel_note', 2.0),
+            belegungen=belegungen_liste
+        )
+        
         return sg
 
     def speichere(self, studiengang: Studiengang) -> None:
